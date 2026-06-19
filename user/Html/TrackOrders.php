@@ -265,9 +265,20 @@ $current_step = $order ? ($steps[$order['order_status']] ?? 1) : 0;
           <div style="background: white; border: 1px solid #e5e7eb; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 25px; width: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f3f4f6; padding-bottom: 12px; margin-bottom: 20px;">
               <h2 style="font-size: 20px; font-weight: bold; color: #111827; margin: 0;">Tracking Order #<?= $order['id'] ?></h2>
-              <span class="badge <?= $order['order_status'] === 'Processing' ? 'badge-processing' : ($order['order_status'] === 'Ready' ? 'badge-ready' : ($order['order_status'] === 'Completed' ? 'badge-completed' : 'badge-pending')) ?>" style="font-size: 14px; padding: 6px 12px;">
-                <?= $order['order_status'] ?>
-              </span>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <?php if ($order['order_status'] === 'Pending'): ?>
+                  <form method="POST" action="MyOrders.php" onsubmit="return confirm('Are you sure you want to cancel this order?');" style="margin: 0;">
+                    <input type="hidden" name="action" value="cancel_order">
+                    <input type="hidden" name="order_id" value="<?= $order['id'] ?>">
+                    <button type="submit" style="padding: 6px 12px; font-size: 13px; font-weight: bold; border: 1.5px solid #ef4444; color: #ef4444; background: white; cursor: pointer; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                      <i class="fa-solid fa-xmark"></i> Cancel Order
+                    </button>
+                  </form>
+                <?php endif; ?>
+                <span class="badge <?= $order['order_status'] === 'Processing' ? 'badge-processing' : ($order['order_status'] === 'Ready' ? 'badge-ready' : ($order['order_status'] === 'Completed' ? 'badge-completed' : 'badge-pending')) ?>" style="font-size: 14px; padding: 6px 12px;">
+                  <?= $order['order_status'] ?>
+                </span>
+              </div>
             </div>
 
             <!-- Stepper -->

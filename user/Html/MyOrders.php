@@ -7,6 +7,60 @@ require_once '../../db.php';
 require_student();
 
 $user_id = $_SESSION['user_id'];
+$msg = '';
+$err = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel_order') {
+    $cancel_id = (int)$_POST['order_id'];
+    
+    // 1. Verify this order belongs to the student and is still Pending
+    $chk_stmt = mysqli_prepare($conn, "SELECT order_status FROM orders WHERE id = ? AND user_id = ?");
+    mysqli_stmt_bind_param($chk_stmt, 'ii', $cancel_id, $user_id);
+    mysqli_stmt_execute($chk_stmt);
+    $res = mysqli_stmt_get_result($chk_stmt);
+    $order_data = mysqli_fetch_assoc($res);
+    mysqli_stmt_close($chk_stmt);
+    
+    if ($order_data && $order_data['order_status'] === 'Pending') {
+        // 2. Fetch order items to restore inventory
+        $items_stmt = mysqli_prepare($conn, "SELECT food_item_id, quantity FROM order_items WHERE order_id = ?");
+        mysqli_stmt_bind_param($items_stmt, 'i', $cancel_id);
+        mysqli_stmt_execute($items_stmt);
+        $items_res = mysqli_stmt_get_result($items_stmt);
+        
+        while ($item = mysqli_fetch_assoc($items_res)) {
+            $food_item_id = $item['food_item_id'];
+            $qty = $item['quantity'];
+            
+            // Restore inventory
+            $restore_stmt = mysqli_prepare($conn, "UPDATE inventory SET quantity = quantity + ? WHERE food_item_id = ?");
+            mysqli_stmt_bind_param($restore_stmt, 'ii', $qty, $food_item_id);
+            mysqli_stmt_execute($restore_stmt);
+            mysqli_stmt_close($restore_stmt);
+        }
+        mysqli_stmt_close($items_stmt);
+        
+        // 3. Delete the order (cascades automatically to order_items and payments)
+        $del_stmt = mysqli_prepare($conn, "DELETE FROM orders WHERE id = ?");
+        mysqli_stmt_bind_param($del_stmt, 'i', $cancel_id);
+        mysqli_stmt_execute($del_stmt);
+        mysqli_stmt_close($del_stmt);
+        
+        header('Location: MyOrders.php?msg=cancelled');
+        exit;
+    } else {
+        header('Location: MyOrders.php?err=cannot_cancel');
+        exit;
+    }
+}
+
+if (isset($_GET['msg']) && $_GET['msg'] === 'cancelled') {
+    $msg = 'Order cancelled successfully. Restored stock levels.';
+}
+if (isset($_GET['err']) && $_GET['err'] === 'cannot_cancel') {
+    $err = 'Order cannot be cancelled. It may not be in Pending status anymore.';
+}
+
 $filter  = $_GET['status'] ?? 'All';
 $allowed = ['All','Pending','Processing','Ready','Completed'];
 if (!in_array($filter, $allowed)) $filter = 'All';
@@ -51,6 +105,13 @@ $orders = mysqli_stmt_get_result($stmt);
         </div>
       </div>
     </header>
+
+    <?php if ($msg): ?>
+      <p style="padding: 8px 0; color: #16a34a; font-weight: bold;"><?= e($msg) ?></p>
+    <?php endif; ?>
+    <?php if ($err): ?>
+      <p style="padding: 8px 0; color: #dc2626; font-weight: bold;"><?= e($err) ?></p>
+    <?php endif; ?>
 
     <!-- Filter Tabs -->
     <div class="orders-filter-bar">
@@ -118,10 +179,19 @@ $orders = mysqli_stmt_get_result($stmt);
                   <span>Total Amount</span>
                   <strong>Rs.<?= number_format($ord['total_amount'], 2) ?></strong>
                 </div>
-                <div class="order-card-actions">
+                <div class="order-card-actions" style="display:flex; gap:8px;">
                   <a href="TrackOrders.php?order_id=<?= $ord['id'] ?>" class="btn-view-details">
                     <i class="fa-solid fa-eye"></i> View Details
                   </a>
+                  <?php if ($ord['order_status'] === 'Pending'): ?>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to cancel this order?');">
+                      <input type="hidden" name="action" value="cancel_order">
+                      <input type="hidden" name="order_id" value="<?= $ord['id'] ?>">
+                      <button type="submit" class="btn-view-details" style="border-color:#ef4444; color:#ef4444; background:white; cursor:pointer;">
+                        <i class="fa-solid fa-xmark"></i> Cancel Order
+                      </button>
+                    </form>
+                  <?php endif; ?>
                 </div>
               </div>
             </div>
