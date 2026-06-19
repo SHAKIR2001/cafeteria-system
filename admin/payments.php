@@ -6,12 +6,30 @@ require_once '../config.php';
 require_once '../db.php';
 require_admin();
 
+// ── MARK PAID (POST) ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_paid') {
+    $pay_id = (int)$_POST['pay_id'];
+    
+    $upd = mysqli_prepare($conn, "UPDATE payments SET payment_status = 'Paid', payment_date = NOW() WHERE id = ?");
+    mysqli_stmt_bind_param($upd, 'i', $pay_id);
+    mysqli_stmt_execute($upd);
+    mysqli_stmt_close($upd);
+    
+    header('Location: payments.php?msg=marked_paid');
+    exit;
+}
+
+$msg = '';
+if (isset($_GET['msg']) && $_GET['msg'] === 'marked_paid') {
+    $msg = 'Payment marked as Paid successfully.';
+}
+
 $sql = "SELECT p.id AS pay_id, p.order_id, u.name AS user_name, p.payment_method,
                p.amount, p.payment_status, p.payment_date
         FROM payments p
         JOIN orders  o ON o.id = p.order_id
         JOIN users   u ON u.id = o.user_id
-        ORDER BY p.payment_date DESC";
+        ORDER BY p.payment_status DESC, p.payment_date DESC";
 $result = mysqli_query($conn, $sql);
 ?>
 <!DOCTYPE html>
@@ -38,18 +56,22 @@ $result = mysqli_query($conn, $sql);
       </div>
     </div>
 
+    <?php if ($msg): ?>
+      <p style="padding:10px 35px;color:#16a34a;font-weight:bold; width:88%; margin: 10px auto;"><?= e($msg) ?></p>
+    <?php endif; ?>
+
     <div class="payments-table-section">
       <div class="table-wrapper">
         <table>
           <thead>
             <tr>
               <th>Pay ID</th><th>Order ID</th><th>Student</th>
-              <th>Method</th><th>Amount</th><th>Status</th><th>Date</th>
+              <th>Method</th><th>Amount</th><th>Status</th><th>Date</th><th>Action</th>
             </tr>
           </thead>
           <tbody id="paymentsTableBody">
             <?php if (mysqli_num_rows($result) === 0): ?>
-              <tr><td colspan="7" class="no-orders">No payments found</td></tr>
+              <tr><td colspan="8" class="no-orders">No payments found</td></tr>
             <?php else: ?>
               <?php while ($row = mysqli_fetch_assoc($result)): ?>
                 <?php
@@ -65,6 +87,19 @@ $result = mysqli_query($conn, $sql);
                   <td>Rs.<?= number_format($row['amount'], 2) ?></td>
                   <td><span class="payment-status <?= $sc ?>"><?= e($row['payment_status']) ?></span></td>
                   <td><?= date('d M Y h:iA', strtotime($row['payment_date'])) ?></td>
+                  <td>
+                    <?php if ($row['payment_status'] === 'Pending' && $row['payment_method'] === 'Cash'): ?>
+                      <form method="POST" style="display:inline;">
+                        <input type="hidden" name="action" value="mark_paid">
+                        <input type="hidden" name="pay_id" value="<?= $row['pay_id'] ?>">
+                        <button type="submit" style="background:#16a34a; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;" onclick="return confirm('Mark this cash payment as Paid?')">
+                          Mark as Paid
+                        </button>
+                      </form>
+                    <?php else: ?>
+                      <span style="color:#6b7280; font-size:12px;">--</span>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endwhile; ?>
             <?php endif; ?>

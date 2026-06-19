@@ -129,18 +129,9 @@ $pay_result = mysqli_query($conn,
                   <td><span class="pay-method <?= $mc ?>"><?= e($row['payment_method']) ?></span></td>
                   <td><span class="pay-status-badge <?= $sc ?>"><?= e($row['payment_status']) ?></span></td>
                   <td>
-                    <?php if ($row['payment_status']==='Pending'): ?>
-                      <form method="POST" style="display:inline;">
-                        <input type="hidden" name="pay_order_id" value="<?= $row['order_id'] ?>">
-                        <button type="submit" class="btn-receipt" onclick="return confirm('Confirm payment for Order #<?= $row['order_id'] ?>?')">
-                          <i class="fa-solid fa-coins"></i> Pay Now
-                        </button>
-                      </form>
-                    <?php else: ?>
-                      <button class="btn-receipt" onclick="showReceipt(<?= $row['pay_id'] ?>, '<?= e($row['order_id']) ?>', '<?= date('d M Y',strtotime($row['payment_date'])) ?>', 'Rs.<?= number_format($row['amount'],2) ?>', '<?= e($row['payment_method']) ?>')">
-                        <i class="fa-solid fa-receipt"></i> Receipt
-                      </button>
-                    <?php endif; ?>
+                    <button class="btn-receipt" onclick="showReceipt(<?= $row['pay_id'] ?>, '<?= e($row['order_id']) ?>', '<?= date('d M Y',strtotime($row['payment_date'])) ?>', 'Rs.<?= number_format($row['amount'],2) ?>', '<?= e($row['payment_method']) ?>', '<?= e($row['payment_status']) ?>')">
+                      <i class="fa-solid fa-receipt"></i> Receipt
+                    </button>
                   </td>
                 </tr>
               <?php endwhile; ?>
@@ -167,6 +158,7 @@ $pay_result = mysqli_query($conn,
       <div class="receipt-row"><span>Order ID</span><strong id="rOrderId">--</strong></div>
       <div class="receipt-row"><span>Date</span><strong id="rDate">--</strong></div>
       <div class="receipt-row"><span>Method</span><strong id="rMethod">--</strong></div>
+      <div class="receipt-row"><span>Status</span><strong id="rStatus">--</strong></div>
     </div>
     <div class="receipt-divider"></div>
     <div class="receipt-total-row">
@@ -181,12 +173,21 @@ $pay_result = mysqli_query($conn,
 </div>
 
 <script>
-function showReceipt(payId, orderId, date, amount, method) {
+function showReceipt(payId, orderId, date, amount, method, status) {
   document.getElementById('rPayId').textContent   = 'PAY' + String(payId).padStart(4,'0');
   document.getElementById('rOrderId').textContent = '#' + orderId;
   document.getElementById('rDate').textContent    = date;
   document.getElementById('rAmount').textContent  = amount;
   document.getElementById('rMethod').textContent  = method;
+  
+  var statusEl = document.getElementById('rStatus');
+  if (status === 'Pending') {
+    statusEl.style.color = '#ef4444';
+    statusEl.textContent = 'UNPAID (Pending)';
+  } else {
+    statusEl.style.color = '#16a34a';
+    statusEl.textContent = 'PAID';
+  }
   document.getElementById('receiptOverlay').classList.add('active');
 }
 document.getElementById('receiptOverlay').addEventListener('click', function(e) {

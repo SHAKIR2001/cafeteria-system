@@ -38,7 +38,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if ($order_row) {
             $user_id = $order_row['user_id'];
-            $msg_text = "Your order #" . $order_id . " status has been changed to " . $new_status . ".";
+            
+            $msg_text = "Your order #" . $order_id . " status is now " . $new_status . ".";
+            if ($new_status === 'Pending') {
+                $msg_text = "📥 Order #" . $order_id . " has been received and is pending.";
+            } elseif ($new_status === 'Processing') {
+                $msg_text = "👨‍🍳 Kitchen is preparing your Order #" . $order_id . "! Hang tight.";
+            } elseif ($new_status === 'Ready') {
+                $msg_text = "🔔 Order #" . $order_id . " is ready for pickup! Collect it at the counter.";
+            } elseif ($new_status === 'Completed') {
+                $msg_text = "✅ Order #" . $order_id . " picked up. Enjoy your meal!";
+            }
+
             $notif = mysqli_prepare($conn, 'INSERT INTO notifications (user_id, order_id, message) VALUES (?, ?, ?)');
             mysqli_stmt_bind_param($notif, 'iis', $user_id, $order_id, $msg_text);
             mysqli_stmt_execute($notif);
