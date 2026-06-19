@@ -98,8 +98,13 @@ $cats = mysqli_query($conn, "SELECT DISTINCT category FROM food_items WHERE avai
           <article class="food-card">
             <img src="../Images/<?= e($f['image']) ?>" alt="<?= e($f['food_name']) ?>"
                  onerror="this.src='../Images/food.jpg'" />
-            <h3><?= e($f['food_name']) ?></h3>
-            <p class="price">Rs.<?= number_format($f['price'], 2) ?></p>
+            <div class="food-card-body">
+              <h3><?= e($f['food_name']) ?></h3>
+              <?php if (!empty($f['description'])): ?>
+                <p class="food-card-desc"><?= e($f['description']) ?></p>
+              <?php endif; ?>
+              <p class="price">Rs.<?= number_format($f['price'], 2) ?></p>
+            </div>
             <form method="POST" action="Menu.php">
               <input type="hidden" name="food_id" value="<?= $f['id'] ?>">
               <button type="submit" class="order-btn" style="width:100%;cursor:pointer;">Add to Cart</button>
