@@ -39,15 +39,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         if ($order_row) {
             $user_id = $order_row['user_id'];
             
-            $msg_text = "Your order #" . $order_id . " status is now " . $new_status . ".";
+            // Fetch food names in this order
+            $f_stmt = mysqli_prepare($conn, "SELECT f.food_name FROM order_items oi JOIN food_items f ON f.id = oi.food_item_id WHERE oi.order_id = ?");
+            mysqli_stmt_bind_param($f_stmt, 'i', $order_id);
+            mysqli_stmt_execute($f_stmt);
+            $f_res = mysqli_stmt_get_result($f_stmt);
+            $food_names = [];
+            while ($f_row = mysqli_fetch_assoc($f_res)) {
+                $food_names[] = $f_row['food_name'];
+            }
+            mysqli_stmt_close($f_stmt);
+            
+            $food_list = implode(', ', $food_names);
+            if (empty($food_list)) {
+                $food_list = "Order #" . $order_id;
+            } else {
+                if (strlen($food_list) > 50) {
+                    $food_list = substr($food_list, 0, 47) . '...';
+                }
+                $food_list = $food_list . " (#" . $order_id . ")";
+            }
+            
+            $msg_text = "Your order (" . $food_list . ") status is now " . $new_status . ".";
             if ($new_status === 'Pending') {
-                $msg_text = "📥 Order #" . $order_id . " has been received and is pending.";
+                $msg_text = "📥 Your order (" . $food_list . ") has been received and is pending.";
             } elseif ($new_status === 'Processing') {
-                $msg_text = "👨‍🍳 Kitchen is preparing your Order #" . $order_id . "! Hang tight.";
+                $msg_text = "👨‍🍳 Kitchen is preparing your order (" . $food_list . ")! Hang tight.";
             } elseif ($new_status === 'Ready') {
-                $msg_text = "🔔 Order #" . $order_id . " is ready for pickup! Collect it at the counter.";
+                $msg_text = "🔔 Your order (" . $food_list . ") is ready for pickup! Collect it at the counter.";
             } elseif ($new_status === 'Completed') {
-                $msg_text = "✅ Order #" . $order_id . " picked up. Enjoy your meal!";
+                $msg_text = "✅ Your order (" . $food_list . ") picked up. Enjoy your meal!";
             }
 
             $notif = mysqli_prepare($conn, 'INSERT INTO notifications (user_id, order_id, message) VALUES (?, ?, ?)');
