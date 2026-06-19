@@ -4,7 +4,6 @@
 
 # ── Environment / Secrets (NEVER commit these) ────────────────
 .env
-stripe_config.php
 
 # ── OS & Editor junk ─────────────────────────────────────────
 .DS_Store
