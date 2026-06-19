@@ -7,6 +7,41 @@ require_once '../db.php';
 require_admin();
 
 $msg = '';
+$err = '';
+
+// ── ADD ADMIN (POST) ──────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_admin') {
+    $name = trim($_POST['adminName'] ?? '');
+    $email = trim($_POST['adminEmail'] ?? '');
+    $password = $_POST['adminPassword'] ?? '';
+    
+    if (!$name || !$email || !$password) {
+        header('Location: users.php?msg=missing_fields');
+        exit;
+    }
+    
+    // Check email uniqueness
+    $chk = mysqli_prepare($conn, 'SELECT id FROM users WHERE email = ? LIMIT 1');
+    mysqli_stmt_bind_param($chk, 's', $email);
+    mysqli_stmt_execute($chk);
+    mysqli_stmt_store_result($chk);
+    $exists = mysqli_stmt_num_rows($chk) > 0;
+    mysqli_stmt_close($chk);
+    
+    if ($exists) {
+        header('Location: users.php?msg=email_exists');
+        exit;
+    }
+    
+    $hashed = password_hash($password, PASSWORD_DEFAULT);
+    $ins = mysqli_prepare($conn, 'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, "admin")');
+    mysqli_stmt_bind_param($ins, 'sss', $name, $email, $hashed);
+    mysqli_stmt_execute($ins);
+    mysqli_stmt_close($ins);
+    
+    header('Location: users.php?msg=admin_added');
+    exit;
+}
 
 // ── DELETE USER ───────────────────────────────────────────────
 if (isset($_GET['delete'])) {
@@ -22,7 +57,12 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
-if (isset($_GET['msg'])) $msg = 'User deleted successfully.';
+if (isset($_GET['msg'])) {
+    if ($_GET['msg'] === 'deleted')      $msg = 'User deleted successfully.';
+    if ($_GET['msg'] === 'admin_added')  $msg = 'Admin account created successfully!';
+    if ($_GET['msg'] === 'email_exists') $err = 'Error: Email address already registered.';
+    if ($_GET['msg'] === 'missing_fields') $err = 'Error: All fields are required.';
+}
 
 // ── FETCH students ────────────────────────────────────────────
 $result = mysqli_query($conn,
@@ -42,12 +82,16 @@ $result = mysqli_query($conn,
   <div class="main-content">
     <?php include 'includes/topbar.php'; ?>
 
-    <div class="users-page-header">
+    <div class="users-page-header" style="display:flex; justify-content:space-between; align-items:center; width:88%; margin:0 auto;">
       <div><h1>Students</h1><p>Manage registered student accounts</p></div>
+      <button id="addAdminBtn" style="cursor:pointer; background-color:#7047f2; color:white; border:none; padding:10px 18px; border-radius:5px; font-weight:bold;">+ Add Admin</button>
     </div>
 
     <?php if ($msg): ?>
-      <p style="padding:10px 35px;color:#16a34a;font-weight:bold;"><?= e($msg) ?></p>
+      <p style="padding:10px 35px;color:#16a34a;font-weight:bold; width:88%; margin: 10px auto;"><?= e($msg) ?></p>
+    <?php endif; ?>
+    <?php if ($err): ?>
+      <p style="padding:10px 35px;color:#dc2626;font-weight:bold; width:88%; margin: 10px auto;"><?= e($err) ?></p>
     <?php endif; ?>
 
     <div class="users-table-section" style="width:88%;margin:20px auto;">
@@ -91,6 +135,31 @@ $result = mysqli_query($conn,
 
   </div>
 </div>
+
+<!-- Add Admin Modal -->
+<div class="food-modal" id="adminModal">
+  <div class="food-modal-box">
+    <h2>Add Admin Account</h2>
+    <form method="POST" action="users.php">
+      <input type="hidden" name="action" value="add_admin">
+      <label style="font-weight:bold; font-size:12px; margin-bottom:4px; display:block;">Full Name</label>
+      <input type="text" name="adminName" placeholder="Enter full name" required>
+      <label style="font-weight:bold; font-size:12px; margin-bottom:4px; display:block;">Email</label>
+      <input type="email" name="adminEmail" placeholder="Enter email" required>
+      <label style="font-weight:bold; font-size:12px; margin-bottom:4px; display:block;">Password</label>
+      <input type="password" name="adminPassword" placeholder="Enter password" required>
+      <div class="modal-buttons">
+        <button type="button" id="closeAdminModal">Cancel</button>
+        <button type="submit">Create Admin</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script src="script.js?v=<?= time() ?>"></script>
+<script>
+  document.getElementById('addAdminBtn').onclick   = () => document.getElementById('adminModal').classList.add('show');
+  document.getElementById('closeAdminModal').onclick = () => document.getElementById('adminModal').classList.remove('show');
+</script>
 </body>
 </html>
