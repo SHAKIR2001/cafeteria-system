@@ -100,14 +100,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  value="<?= e($_POST['phone'] ?? '') ?>" />
 
           <label for="registerPassword">Password</label>
-          <div class="register-password-field">
+          <div class="register-password-box">
             <input type="password" id="registerPassword" name="registerPassword"
                    placeholder="Create a password" />
+            <button type="button" class="register-eye-btn" data-target="registerPassword" aria-label="Toggle password">
+              <i class="fa-regular fa-eye"></i>
+            </button>
           </div>
 
           <label for="confirmPassword">Confirm Password</label>
-          <input type="password" id="confirmPassword" name="confirmPassword"
-                 placeholder="Confirm your password" />
+          <div class="register-password-box">
+            <input type="password" id="confirmPassword" name="confirmPassword"
+                   placeholder="Confirm your password" />
+            <button type="button" class="register-eye-btn" data-target="confirmPassword" aria-label="Toggle password">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
 
           <button type="submit" class="register-btn">Register</button>
 
@@ -119,5 +127,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </section>
   </main>
+
+  <script>
+    document.querySelectorAll('.register-eye-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var target = document.getElementById(btn.getAttribute('data-target'));
+        var icon = btn.querySelector('i');
+        if (target.type === 'password') {
+          target.type = 'text';
+          icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+          target.type = 'password';
+          icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+      });
+    });
+  </script>
 </body>
 </html>
