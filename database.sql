@@ -102,11 +102,12 @@ CREATE TABLE IF NOT EXISTS order_items (
 -- 6. PAYMENTS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS payments (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
-    order_id        INT             NOT NULL,
-    payment_method  ENUM('Cash','Card') NOT NULL DEFAULT 'Cash',
-    amount          DECIMAL(10,2)   NOT NULL,
-    payment_status  ENUM('Paid','Pending','Failed') NOT NULL DEFAULT 'Pending',
-    payment_date    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    order_id          INT             NOT NULL,
+    payment_method    ENUM('Cash','Card') NOT NULL DEFAULT 'Cash',
+    amount            DECIMAL(10,2)   NOT NULL,
+    payment_status    ENUM('Paid','Pending','Failed') NOT NULL DEFAULT 'Pending',
+    payment_date      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    stripe_session_id VARCHAR(255)    DEFAULT NULL,  -- Stripe Checkout Session ID (card payments)
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

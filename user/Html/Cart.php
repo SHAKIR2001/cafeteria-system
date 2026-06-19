@@ -33,6 +33,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payment_method = $_POST['payment'] === 'card' ? 'Card' : 'Cash';
         $user_id        = $_SESSION['user_id'];
 
+        // ── Card payment → redirect to Stripe Checkout ─────────
+        if ($payment_method === 'Card') {
+            // Cart stays in session; stripe_checkout.php reads it
+            header('Location: stripe_checkout.php');
+            exit;
+        }
+
+        // ── Cash payment → original flow ───────────────────────
         // Calculate total
         $total = 0;
         foreach ($_SESSION['cart'] as $item) {
@@ -73,12 +81,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_close($inv);
         }
 
-        // Insert payment record
-        $pay_status = $payment_method === 'Card' ? 'Paid' : 'Pending';
+        // Insert payment record (Cash = Pending until admin confirms)
         $pay = mysqli_prepare($conn,
-            'INSERT INTO payments (order_id, payment_method, amount, payment_status) VALUES (?,?,?,?)'
+            'INSERT INTO payments (order_id, payment_method, amount, payment_status) VALUES (?,?,?,\'Pending\')'
         );
-        mysqli_stmt_bind_param($pay, 'isds', $order_id, $payment_method, $grand_total, $pay_status);
+        mysqli_stmt_bind_param($pay, 'isd', $order_id, $payment_method, $grand_total);
         mysqli_stmt_execute($pay);
         mysqli_stmt_close($pay);
 
@@ -109,8 +116,106 @@ $item_count  = array_sum(array_column($_SESSION['cart'], 'qty'));
   <title>Your Cart</title>
   <link rel="stylesheet" href="../CSS/style.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    /* ── Stripe Loading Overlay ──────────────────────────── */
+    #stripe-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+    }
+    #stripe-overlay.active { display: flex; }
+    .stripe-loader-card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 36px 48px;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      animation: scaleIn 0.3s ease;
+    }
+    @keyframes scaleIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+    .stripe-loader-card .stripe-logo {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: #635bff;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .stripe-loader-card p {
+      color: #555;
+      font-size: 0.95rem;
+      margin-bottom: 18px;
+    }
+    .stripe-spinner {
+      width: 40px; height: 40px;
+      border: 4px solid #e0e0fe;
+      border-top-color: #635bff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Stripe error/cancel banner ─────────────────────── */
+    .stripe-banner {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      margin-bottom: 14px;
+      animation: fadeInDown 0.4s ease;
+    }
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .stripe-banner.error  { background:#fff1f0; border:1.5px solid #ffccc7; color:#cf1322; }
+    .stripe-banner.cancel { background:#fffbe6; border:1.5px solid #ffe58f; color:#874d00; }
+    .stripe-banner i { font-size: 1.2rem; }
+
+    /* ── Card payment option badge ───────────────────────── */
+    .stripe-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #635bff;
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .stripe-badge i { font-size: 0.7rem; }
+
+    .stripe-secure-note {
+      font-size: 0.78rem;
+      color: #888;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .stripe-secure-note i { color: #635bff; }
+  </style>
 </head>
 <body>
+<!-- ── Stripe Redirect Overlay ───────────────────────────────── -->
+<div id="stripe-overlay">
+  <div class="stripe-loader-card">
+    <div class="stripe-logo">stripe</div>
+    <p>Redirecting you to secure payment&hellip;</p>
+    <div class="stripe-spinner"></div>
+  </div>
+</div>
 <div class="dashboard-page">
   <?php include 'includes/sidebar.php'; ?>
 
@@ -118,6 +223,25 @@ $item_count  = array_sum(array_column($_SESSION['cart'], 'qty'));
     <div class="cart-inner">
       <!-- Cart Items -->
       <section class="cart-panel">
+        <?php
+          // ── Show Stripe error / cancellation banners ─────────
+          if (!empty($_GET['stripe_error'])): ?>
+          <div class="stripe-banner error">
+            <i class="fa-solid fa-circle-xmark"></i>
+            <span>Payment failed: <?= e($_GET['stripe_error']) ?>. Please try again.</span>
+          </div>
+        <?php elseif (isset($_GET['payment']) && $_GET['payment'] === 'cancelled'): ?>
+          <div class="stripe-banner cancel">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Payment was cancelled. Your cart is safe &mdash; you can try again anytime.</span>
+          </div>
+        <?php elseif (isset($_GET['payment']) && $_GET['payment'] === 'failed'): ?>
+          <div class="stripe-banner error">
+            <i class="fa-solid fa-circle-xmark"></i>
+            <span>Payment could not be verified. Please try again or choose Cash on Pickup.</span>
+          </div>
+        <?php endif; ?>
+
         <div class="cart-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <div>
             <h1>Your Cart <span>(<?= $item_count ?> Item<?= $item_count != 1 ? 's' : '' ?>)</span></h1>
@@ -193,10 +317,13 @@ $item_count  = array_sum(array_column($_SESSION['cart'], 'qty'));
               <input type="radio" name="payment" value="cash" />
               <span class="radio-dot"></span><strong>Cash on pickup</strong>
             </label>
-            <label class="payment-option">
+            <label class="payment-option" id="card-option">
               <input type="radio" name="payment" value="card" checked />
-              <span class="radio-dot"></span><strong>Card payment</strong>
+              <span class="radio-dot"></span>
+              <strong>Card payment</strong>
+              <span class="stripe-badge"><i class="fa-brands fa-stripe-s"></i> Stripe</span>
             </label>
+            <p class="stripe-secure-note"><i class="fa-solid fa-lock"></i> Secured &amp; encrypted by Stripe</p>
           </form>
         </section>
 
@@ -209,5 +336,17 @@ $item_count  = array_sum(array_column($_SESSION['cart'], 'qty'));
     </div>
   </main>
 </div>
+<script>
+  // Show Stripe overlay when card payment is submitted
+  const orderForm = document.getElementById('orderForm');
+  if (orderForm) {
+    orderForm.addEventListener('submit', function() {
+      const cardSelected = document.querySelector('input[name="payment"][value="card"]');
+      if (cardSelected && cardSelected.checked) {
+        document.getElementById('stripe-overlay').classList.add('active');
+      }
+    });
+  }
+</script>
 </body>
 </html>
