@@ -22,7 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (!$name || !$email) {
             $err = 'Name and Email are required.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $err = 'Invalid email address.';
+            $err = 'Please enter a valid email address (e.g. name@example.com).';
+        } elseif (!empty($phone) && !preg_match('/^[0-9]{10}$/', $phone)) {
+            $err = 'Phone number must be exactly 10 digits.';
         } else {
             $upd = mysqli_prepare($conn,
                 'UPDATE users SET name=?, email=?, student_id=?, phone=? WHERE id=?'
@@ -157,11 +159,14 @@ $completed    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS n FRO
                 <label for="emailField">Email Address</label>
                 <input type="email" id="emailField" name="email"
                        value="<?= e($user['email']) ?>" disabled />
+                <span class="field-hint" id="profileEmailHint"></span>
               </div>
               <div class="profile-form-group">
                 <label for="phoneField">Phone Number</label>
                 <input type="tel" id="phoneField" name="phone"
+                       maxlength="10"
                        value="<?= e($user['phone'] ?? '') ?>" disabled />
+                <span class="field-hint" id="profilePhoneHint"></span>
               </div>
             </div>
 
@@ -223,6 +228,19 @@ $completed    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS n FRO
   </main>
 </div>
 
+<style>
+  .field-hint {
+    display: block;
+    font-size: 12px;
+    margin-top: 4px;
+    min-height: 16px;
+  }
+  .field-hint.hint-error   { color: #dc2626; }
+  .field-hint.hint-success { color: #16a34a; }
+  input.input-error   { border-color: #dc2626 !important; box-shadow: 0 0 0 2px rgba(220,38,38,0.12) !important; }
+  input.input-success { border-color: #16a34a !important; box-shadow: 0 0 0 2px rgba(22,163,74,0.12)  !important; }
+</style>
+
 <script>
   // Edit toggle
   var editBtn     = document.getElementById('editToggleBtn');
@@ -240,6 +258,9 @@ $completed    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS n FRO
     inputs.forEach(function(inp) { inp.disabled = true; });
     formActions.style.display = 'none';
     editBtn.style.display     = '';
+    // Clear hints on cancel
+    clearHint(emailPF, profileEmailHint);
+    clearHint(phonePF, profilePhoneHint);
   });
 
   // Password eye toggle
@@ -257,7 +278,72 @@ $completed    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS n FRO
     });
   });
 
+  /* ── Real-time validation for profile form ── */
+  var emailPF          = document.getElementById('emailField');
+  var phonePF          = document.getElementById('phoneField');
+  var profileEmailHint = document.getElementById('profileEmailHint');
+  var profilePhoneHint = document.getElementById('profilePhoneHint');
 
+  function validateEmail(val) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+  }
+  function validatePhone(val) {
+    return /^[0-9]{10}$/.test(val);
+  }
+  function setHint(input, hint, type, msg) {
+    hint.textContent = msg;
+    hint.className = 'field-hint' + (type ? ' hint-' + type : '');
+    input.classList.remove('input-error', 'input-success');
+    if (type) input.classList.add('input-' + type);
+  }
+  function clearHint(input, hint) {
+    setHint(input, hint, '', '');
+  }
+
+  emailPF.addEventListener('input', function() {
+    if (this.disabled) return;
+    var val = this.value.trim();
+    if (!val) { clearHint(emailPF, profileEmailHint); return; }
+    if (validateEmail(val)) {
+      setHint(emailPF, profileEmailHint, 'success', '\u2713 Valid email address');
+    } else {
+      setHint(emailPF, profileEmailHint, 'error', '\u2717 Enter a valid email (e.g. name@example.com)');
+    }
+  });
+
+  phonePF.addEventListener('input', function() {
+    if (this.disabled) return;
+    this.value = this.value.replace(/[^0-9]/g, '');
+    var val = this.value;
+    if (!val) { clearHint(phonePF, profilePhoneHint); return; }
+    if (validatePhone(val)) {
+      setHint(phonePF, profilePhoneHint, 'success', '\u2713 Valid phone number');
+    } else {
+      var remaining = 10 - val.length;
+      setHint(phonePF, profilePhoneHint, 'error',
+        remaining > 0
+          ? '\u2717 ' + remaining + ' more digit' + (remaining === 1 ? '' : 's') + ' needed'
+          : '\u2717 Phone number must be exactly 10 digits');
+    }
+  });
+
+  /* ── Block submission if invalid ── */
+  document.getElementById('profileForm').addEventListener('submit', function(e) {
+    var emailOk = validateEmail(emailPF.value.trim());
+    var phoneVal = phonePF.value.trim();
+    var phoneOk  = !phoneVal || validatePhone(phoneVal); // phone is optional in profile
+    if (!emailOk) {
+      setHint(emailPF, profileEmailHint, 'error', '\u2717 Enter a valid email address');
+      emailPF.focus();
+      e.preventDefault();
+      return;
+    }
+    if (!phoneOk) {
+      setHint(phonePF, profilePhoneHint, 'error', '\u2717 Phone number must be exactly 10 digits');
+      phonePF.focus();
+      e.preventDefault();
+    }
+  });
 </script>
 </body>
 </html>

@@ -69,11 +69,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // ── EDIT (POST) ───────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
     $id          = (int)$_POST['editId'];
-    $food_name   = trim($_POST['editName']     ?? '');
-    $category    = trim($_POST['editCategory'] ?? '');
-    $price       = (float)$_POST['editPrice']  ?? 0;
-    $stock       = (int)$_POST['editStock']    ?? 0;
-    $status      = $_POST['editStatus']        ?? 'Available';
+    $food_name   = trim($_POST['editName']        ?? '');
+    $category    = trim($_POST['editCategory']    ?? '');
+    $price       = (float)$_POST['editPrice']     ?? 0;
+    $stock       = (int)$_POST['editStock']       ?? 0;
+    $status      = $_POST['editStatus']           ?? 'Available';
+    $description = trim($_POST['editDescription'] ?? '');
 
     // Handle image upload if provided
     $image_update_sql = "";
@@ -90,9 +91,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-    $query = "UPDATE food_items SET food_name=?, category=?, price=?, availability_status=?" . $image_update_sql . " WHERE id=?";
+    $query = "UPDATE food_items SET food_name=?, description=?, category=?, price=?, availability_status=?" . $image_update_sql . " WHERE id=?";
     $upd = mysqli_prepare($conn, $query);
-    mysqli_stmt_bind_param($upd, 'ssdsi', $food_name, $category, $price, $status, $id);
+    mysqli_stmt_bind_param($upd, 'sssdsi', $food_name, $description, $category, $price, $status, $id);
     mysqli_stmt_execute($upd);
     mysqli_stmt_close($upd);
 
@@ -109,10 +110,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // Flash messages
+$flash_type = '';
 if (isset($_GET['msg'])) {
-    if ($_GET['msg'] === 'added')   $msg = 'Food item added successfully.';
-    if ($_GET['msg'] === 'updated') $msg = 'Food item updated successfully.';
-    if ($_GET['msg'] === 'deleted') $msg = 'Food item deleted successfully.';
+    if ($_GET['msg'] === 'added')   { $msg = 'Food item added successfully.';   $flash_type = 'success'; }
+    if ($_GET['msg'] === 'updated') { $msg = 'Food item updated successfully.'; $flash_type = 'success'; }
+    if ($_GET['msg'] === 'deleted') { $msg = 'Food item deleted successfully.'; $flash_type = 'success'; }
 }
 
 // ── FETCH all food items with inventory ───────────────────────
@@ -143,7 +145,7 @@ $foods = mysqli_query($conn, $foods_sql);
     }
   </style>
 </head>
-<body>
+<body data-flash-type="<?= e($flash_type) ?>" data-flash-msg="<?= e($msg) ?>">
 <div class="page">
   <?php include 'includes/sidebar.php'; ?>
   <div class="main-content">
@@ -154,9 +156,7 @@ $foods = mysqli_query($conn, $foods_sql);
       <button id="addFoodBtn">+ Add New Food Item</button>
     </div>
 
-    <?php if ($msg): ?>
-      <p style="padding:10px 35px;color:#16a34a;font-weight:bold;"><?= e($msg) ?></p>
-    <?php endif; ?>
+
 
     <!-- Add Food Modal -->
     <div class="food-modal" id="foodModal">
@@ -204,7 +204,8 @@ $foods = mysqli_query($conn, $foods_sql);
             <option value="Available">Available</option>
             <option value="Unavailable">Unavailable</option>
           </select>
-          <label style="font-size: 13px; color: #555; display: block; margin-bottom: 5px; margin-top: 10px;">Update Image (optional)</label>
+          <textarea name="editDescription" id="editDescriptionField" placeholder="Description (optional)" rows="3" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid #ddd;border-radius:6px;resize:vertical;font-family:inherit;font-size:14px;outline:none;"></textarea>
+          <label style="font-size: 13px; color: #555; display: block; margin-bottom: 5px; margin-top: 2px;">Update Image (optional)</label>
           <input type="file"   name="foodImage"    accept="image/*">
           <div class="modal-buttons">
             <button type="button" id="closeEditModal">Cancel</button>
@@ -233,7 +234,17 @@ $foods = mysqli_query($conn, $foods_sql);
             </tr>
           </thead>
           <tbody id="foodTableBody">
-            <?php while ($f = mysqli_fetch_assoc($foods)): ?>
+            <?php $food_rows = mysqli_fetch_all($foods, MYSQLI_ASSOC); ?>
+            <?php if (empty($food_rows)): ?>
+              <tr><td colspan="8">
+                <div class="empty-state">
+                  <div class="empty-state-icon">🍽️</div>
+                  <div class="empty-state-title">No food items yet</div>
+                  <div class="empty-state-text">Click "+ Add New Food Item" to add your first item to the menu.</div>
+                </div>
+              </td></tr>
+            <?php else: ?>
+            <?php foreach ($food_rows as $f): ?>
               <?php
                 if ($f['availability_status'] === 'Unavailable') {
                   $status_class = 'status-cancelled'; // Red badge
@@ -256,16 +267,15 @@ $foods = mysqli_query($conn, $foods_sql);
                 <td><span class="food-status <?= $status_class ?>"><?= $status_label ?></span></td>
                 <td>
                   <div class="action-buttons">
-                    <button class="edit-btn" onclick="openEditModal(<?= $f['id'] ?>, '<?= e(addslashes($f['food_name'])) ?>', '<?= e(addslashes($f['category'])) ?>', <?= $f['price'] ?>, <?= $f['stock'] ?>, '<?= $f['availability_status'] ?>')">
+                    <button class="edit-btn" onclick="openEditModal(<?= $f['id'] ?>, '<?= e(addslashes($f['food_name'])) ?>', '<?= e(addslashes($f['category'])) ?>', <?= $f['price'] ?>, <?= $f['stock'] ?>, '<?= $f['availability_status'] ?>', '<?= e(addslashes($f['description'] ?? '')) ?>')">
                       <img src="images/edit.png" alt="Edit">
                     </button>
-                    <a href="food_items.php?delete=<?= $f['id'] ?>" onclick="return confirm('Delete this food item?')">
-                      <button class="delete-btn"><img src="images/trash.png" alt="Delete"></button>
-                    </a>
+                    <button class="delete-btn" onclick="confirmDialog({icon:'🗑️',title:'Delete Food Item',message:'Delete &quot;<?= e(addslashes($f['food_name'])) ?>&quot;? This will also remove its inventory record.',okText:'Yes, Delete',onConfirm:function(){window.location='food_items.php?delete=<?= $f['id'] ?>';}})"><img src="images/trash.png" alt="Delete"></button>
                   </div>
                 </td>
               </tr>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
+            <?php endif; ?>
           </tbody>
         </table>
       </div>
@@ -281,7 +291,7 @@ $foods = mysqli_query($conn, $foods_sql);
   document.getElementById('closeEditModal').onclick = () => document.getElementById('editFoodModal').classList.remove('show');
 
   // Edit modal populate
-  function openEditModal(id, name, cat, price, stock, status) {
+  function openEditModal(id, name, cat, price, stock, status, description) {
     document.getElementById('editIdVal').value       = id;
     document.getElementById('editNameField').value   = name;
     
@@ -304,9 +314,10 @@ $foods = mysqli_query($conn, $foods_sql);
     }
     select.value = cat;
 
-    document.getElementById('editPriceField').value  = price;
-    document.getElementById('editStockField').value  = stock;
-    document.getElementById('editStatusField').value = status;
+    document.getElementById('editPriceField').value       = price;
+    document.getElementById('editStockField').value       = stock;
+    document.getElementById('editStatusField').value      = status;
+    document.getElementById('editDescriptionField').value = description || '';
     document.getElementById('editFoodModal').classList.add('show');
   }
 

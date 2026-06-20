@@ -22,7 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$name || !$email || !$student_id || !$phone || !$password || !$confirm) {
         $error = 'Please fill in all fields.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = 'Please enter a valid email address.';
+        $error = 'Please enter a valid email address (e.g. name@example.com).';
+    } elseif (!preg_match('/^[0-9]{10}$/', $phone)) {
+        $error = 'Phone number must be exactly 10 digits.';
     } elseif (strlen($password) < 6) {
         $error = 'Password must be at least 6 characters.';
     } elseif ($password !== $confirm) {
@@ -87,7 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <label for="email">Email</label>
           <input type="email" id="email" name="email"
                  placeholder="Enter your email"
-                 value="<?= e($_POST['email'] ?? '') ?>" />
+                 value="<?= e($_POST['email'] ?? '') ?>" autocomplete="email" />
+          <span class="field-hint" id="emailHint"></span>
 
           <label for="studentId">Student ID</label>
           <input type="text" id="studentId" name="studentId"
@@ -95,9 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  value="<?= e($_POST['studentId'] ?? '') ?>" />
 
           <label for="phone">Phone Number</label>
-          <input type="text" id="phone" name="phone"
-                 placeholder="Enter your phone number"
+          <input type="tel" id="phone" name="phone"
+                 placeholder="Enter your phone number (10 digits)"
+                 maxlength="10"
                  value="<?= e($_POST['phone'] ?? '') ?>" />
+          <span class="field-hint" id="phoneHint"></span>
 
           <label for="registerPassword">Password</label>
           <div class="register-password-box">
@@ -128,7 +133,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </section>
   </main>
 
+  <style>
+    .field-hint {
+      display: block;
+      font-size: 12px;
+      margin: -6px 0 10px;
+      min-height: 16px;
+      padding-left: 2px;
+    }
+    .field-hint.hint-error   { color: #dc2626; }
+    .field-hint.hint-success { color: #16a34a; }
+    input.input-error   { border-color: #dc2626 !important; }
+    input.input-success { border-color: #16a34a !important; }
+  </style>
+
   <script>
+    /* ── Eye toggle ── */
     document.querySelectorAll('.register-eye-btn').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var target = document.getElementById(btn.getAttribute('data-target'));
@@ -141,6 +161,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           icon.classList.replace('fa-eye-slash', 'fa-eye');
         }
       });
+    });
+
+    /* ── Real-time field validation ── */
+    var emailInput = document.getElementById('email');
+    var emailHint  = document.getElementById('emailHint');
+    var phoneInput = document.getElementById('phone');
+    var phoneHint  = document.getElementById('phoneHint');
+
+    function validateEmail(val) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+    }
+    function validatePhone(val) {
+      return /^[0-9]{10}$/.test(val);
+    }
+
+    emailInput.addEventListener('input', function() {
+      var val = this.value.trim();
+      if (!val) {
+        setHint(emailInput, emailHint, '', '');
+      } else if (validateEmail(val)) {
+        setHint(emailInput, emailHint, 'success', '✓ Valid email address');
+      } else {
+        setHint(emailInput, emailHint, 'error', '✗ Enter a valid email (e.g. name@example.com)');
+      }
+    });
+
+    phoneInput.addEventListener('input', function() {
+      /* Strip non-digits as user types */
+      this.value = this.value.replace(/[^0-9]/g, '');
+      var val = this.value;
+      if (!val) {
+        setHint(phoneInput, phoneHint, '', '');
+      } else if (validatePhone(val)) {
+        setHint(phoneInput, phoneHint, 'success', '✓ Valid phone number');
+      } else {
+        var remaining = 10 - val.length;
+        setHint(phoneInput, phoneHint, 'error',
+          remaining > 0
+            ? '✗ ' + remaining + ' more digit' + (remaining === 1 ? '' : 's') + ' needed'
+            : '✗ Phone number must be exactly 10 digits');
+      }
+    });
+
+    function setHint(input, hint, type, msg) {
+      hint.textContent = msg;
+      hint.className = 'field-hint' + (type ? ' hint-' + type : '');
+      input.classList.remove('input-error', 'input-success');
+      if (type) input.classList.add('input-' + type);
+    }
+
+    /* ── Block submission if fields are invalid ── */
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+      var emailOk = validateEmail(emailInput.value.trim());
+      var phoneOk = validatePhone(phoneInput.value.trim());
+      if (!emailOk) {
+        setHint(emailInput, emailHint, 'error', '✗ Enter a valid email address');
+        emailInput.focus();
+        e.preventDefault();
+        return;
+      }
+      if (!phoneOk) {
+        setHint(phoneInput, phoneHint, 'error', '✗ Phone number must be exactly 10 digits');
+        phoneInput.focus();
+        e.preventDefault();
+      }
     });
   </script>
 </body>

@@ -57,11 +57,12 @@ if (isset($_GET['delete'])) {
     exit;
 }
 
+$flash_type = '';
 if (isset($_GET['msg'])) {
-    if ($_GET['msg'] === 'deleted')      $msg = 'User deleted successfully.';
-    if ($_GET['msg'] === 'admin_added')  $msg = 'Admin account created successfully!';
-    if ($_GET['msg'] === 'email_exists') $err = 'Error: Email address already registered.';
-    if ($_GET['msg'] === 'missing_fields') $err = 'Error: All fields are required.';
+    if ($_GET['msg'] === 'deleted')        { $msg = 'Student deleted successfully.';          $flash_type = 'success'; }
+    if ($_GET['msg'] === 'admin_added')    { $msg = 'Admin account created successfully!';    $flash_type = 'success'; }
+    if ($_GET['msg'] === 'email_exists')   { $err = 'Error: Email address already registered.'; $flash_type = 'error';   }
+    if ($_GET['msg'] === 'missing_fields') { $err = 'Error: All fields are required.';          $flash_type = 'error';   }
 }
 
 // ── FETCH students ────────────────────────────────────────────
@@ -76,7 +77,7 @@ $result = mysqli_query($conn,
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-flash-type="<?= e($flash_type) ?>" data-flash-msg="<?= e($msg ?: $err) ?>">
 <div class="page">
   <?php include 'includes/sidebar.php'; ?>
   <div class="main-content">
@@ -87,12 +88,7 @@ $result = mysqli_query($conn,
       <button id="addAdminBtn" style="cursor:pointer; background-color:#7047f2; color:white; border:none; padding:10px 18px; border-radius:5px; font-weight:bold;">+ Add Admin</button>
     </div>
 
-    <?php if ($msg): ?>
-      <p style="padding:10px 35px;color:#16a34a;font-weight:bold; width:88%; margin: 10px auto;"><?= e($msg) ?></p>
-    <?php endif; ?>
-    <?php if ($err): ?>
-      <p style="padding:10px 35px;color:#dc2626;font-weight:bold; width:88%; margin: 10px auto;"><?= e($err) ?></p>
-    <?php endif; ?>
+
 
     <div class="users-table-section" style="width:88%;margin:20px auto;">
       <div class="table-wrapper">
@@ -105,7 +101,13 @@ $result = mysqli_query($conn,
           </thead>
           <tbody id="usersTableBody">
             <?php if (mysqli_num_rows($result) === 0): ?>
-              <tr><td colspan="7" class="no-orders">No students registered yet</td></tr>
+              <tr><td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-state-icon">👥</div>
+                  <div class="empty-state-title">No students registered yet</div>
+                  <div class="empty-state-text">Students will appear here after they register through the student portal.</div>
+                </div>
+              </td></tr>
             <?php else: ?>
               <?php while ($row = mysqli_fetch_assoc($result)): ?>
                 <tr>
@@ -117,12 +119,7 @@ $result = mysqli_query($conn,
                   <td><?= date('d M Y', strtotime($row['created_at'])) ?></td>
                   <td>
                     <div class="user-actions">
-                      <a href="users.php?delete=<?= $row['id'] ?>"
-                         onclick="return confirm('Delete this student account? Their orders will also be removed.')">
-                        <button class="delete-btn user-delete-btn">
-                          <img src="images/trash.png" alt="Delete">
-                        </button>
-                      </a>
+                      <button class="delete-btn user-delete-btn" onclick="confirmDialog({icon:'⚠️',title:'Delete Student',message:'Delete student &quot;<?= e(addslashes($row['name'])) ?>&quot;? Their orders and payments will also be removed.',okText:'Yes, Delete',onConfirm:function(){window.location='users.php?delete=<?= $row['id'] ?>';}})"><img src="images/trash.png" alt="Delete"></button>
                     </div>
                   </td>
                 </tr>
