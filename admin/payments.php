@@ -20,8 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 $msg = '';
+$flash_type = '';
 if (isset($_GET['msg']) && $_GET['msg'] === 'marked_paid') {
     $msg = 'Payment marked as Paid successfully.';
+    $flash_type = 'success';
 }
 
 $sql = "SELECT p.id AS pay_id, p.order_id, u.name AS user_name, p.payment_method,
@@ -39,7 +41,7 @@ $result = mysqli_query($conn, $sql);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-flash-type="<?= e($flash_type) ?>" data-flash-msg="<?= e($msg) ?>">
 <div class="page">
   <?php include 'includes/sidebar.php'; ?>
   <div class="main-content">
@@ -56,9 +58,7 @@ $result = mysqli_query($conn, $sql);
       </div>
     </div>
 
-    <?php if ($msg): ?>
-      <p style="padding:10px 35px;color:#16a34a;font-weight:bold; width:88%; margin: 10px auto;"><?= e($msg) ?></p>
-    <?php endif; ?>
+
 
     <div class="payments-table-section">
       <div class="table-wrapper">
@@ -71,7 +71,13 @@ $result = mysqli_query($conn, $sql);
           </thead>
           <tbody id="paymentsTableBody">
             <?php if (mysqli_num_rows($result) === 0): ?>
-              <tr><td colspan="8" class="no-orders">No payments found</td></tr>
+              <tr><td colspan="8">
+                <div class="empty-state">
+                  <div class="empty-state-icon">💳</div>
+                  <div class="empty-state-title">No payment records</div>
+                  <div class="empty-state-text">Payment transactions will appear here once students place and pay for orders.</div>
+                </div>
+              </td></tr>
             <?php else: ?>
               <?php while ($row = mysqli_fetch_assoc($result)): ?>
                 <?php
@@ -89,10 +95,11 @@ $result = mysqli_query($conn, $sql);
                   <td><?= date('d M Y h:iA', strtotime($row['payment_date'])) ?></td>
                   <td>
                     <?php if ($row['payment_status'] === 'Pending' && $row['payment_method'] === 'Cash'): ?>
-                      <form method="POST" style="display:inline;">
+                      <form method="POST" style="display:inline;" id="pay-form-<?= $row['pay_id'] ?>">
                         <input type="hidden" name="action" value="mark_paid">
                         <input type="hidden" name="pay_id" value="<?= $row['pay_id'] ?>">
-                        <button type="submit" style="background:#16a34a; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;" onclick="return confirm('Mark this cash payment as Paid?')">
+                        <button type="button" style="background:#16a34a; color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:12px;"
+                          onclick="markAsPaid(<?= $row['pay_id'] ?>, 'Rs.<?= number_format($row['amount'],2) ?>', '<?= e(addslashes($row['user_name'])) ?>')">
                           Mark as Paid
                         </button>
                       </form>
@@ -118,6 +125,18 @@ $result = mysqli_query($conn, $sql);
       row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
   });
+
+  function markAsPaid(payId, amount, studentName) {
+    confirmDialog({
+      icon: '💰',
+      title: 'Mark as Paid',
+      message: 'Confirm cash payment of ' + amount + ' from ' + studentName + ' as Paid?',
+      okText: 'Yes, Mark Paid',
+      onConfirm: function () {
+        document.getElementById('pay-form-' + payId).submit();
+      }
+    });
+  }
 </script>
 </body>
 </html>

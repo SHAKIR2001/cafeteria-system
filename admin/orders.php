@@ -82,12 +82,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+$flash_type = '';
 $err = '';
 if (isset($_GET['msg'])) {
     if ($_GET['msg'] === 'updated') {
         $msg = 'Order status updated successfully.';
+        $flash_type = 'success';
     } elseif ($_GET['msg'] === 'cannot_modify') {
         $err = 'Completed orders cannot be modified.';
+        $flash_type = 'error';
     }
 }
 
@@ -123,7 +126,7 @@ if ($filter === 'All') {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-flash-type="<?= e($flash_type) ?>" data-flash-msg="<?= e($msg ?: $err) ?>">
 <div class="page">
   <?php include 'includes/sidebar.php'; ?>
   <div class="main-content">
@@ -134,12 +137,7 @@ if ($filter === 'All') {
       <p>Manage &amp; track all orders.</p>
     </div>
 
-    <?php if ($msg): ?>
-      <p style="padding:8px 35px;color:#16a34a;font-weight:bold;"><?= e($msg) ?></p>
-    <?php endif; ?>
-    <?php if ($err): ?>
-      <p style="padding:8px 35px;color:#dc2626;font-weight:bold;"><?= e($err) ?></p>
-    <?php endif; ?>
+
 
     <!-- Status Tabs -->
     <div class="order-tabs">
@@ -170,7 +168,13 @@ if ($filter === 'All') {
           </thead>
           <tbody id="ordersTableBody">
             <?php if (mysqli_num_rows($result) === 0): ?>
-              <tr><td colspan="7" class="no-orders">No orders found</td></tr>
+              <tr><td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-state-icon">📋</div>
+                  <div class="empty-state-title">No orders found</div>
+                  <div class="empty-state-text">There are no orders matching this filter. Orders will appear here once students place them.</div>
+                </div>
+              </td></tr>
             <?php else: ?>
               <?php while ($row = mysqli_fetch_assoc($result)): ?>
                 <?php

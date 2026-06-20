@@ -24,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
-if (isset($_GET['msg'])) $msg = 'Inventory updated successfully.';
+$flash_type = '';
+if (isset($_GET['msg'])) { $msg = 'Inventory updated successfully.'; $flash_type = 'success'; }
 
 // ── FETCH ─────────────────────────────────────────────────────
 $sql = "SELECT i.id AS inv_id, f.food_name, i.quantity, i.low_stock_alert, i.unit, i.last_updated
@@ -39,7 +40,7 @@ $result = mysqli_query($conn, $sql);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-flash-type="<?= e($flash_type) ?>" data-flash-msg="<?= e($msg) ?>">
 <div class="page">
   <?php include 'includes/sidebar.php'; ?>
   <div class="main-content">
@@ -49,9 +50,7 @@ $result = mysqli_query($conn, $sql);
       <div><h1>Inventory</h1><p>Track and manage stock levels</p></div>
     </div>
 
-    <?php if ($msg): ?>
-      <p style="padding:10px 35px;color:#16a34a;font-weight:bold;"><?= e($msg) ?></p>
-    <?php endif; ?>
+
 
     <div class="inventory-table-section">
       <div class="table-wrapper">
@@ -63,7 +62,17 @@ $result = mysqli_query($conn, $sql);
             </tr>
           </thead>
           <tbody id="inventoryTableBody">
-            <?php while ($row = mysqli_fetch_assoc($result)): ?>
+            <?php $inv_rows = mysqli_fetch_all($result, MYSQLI_ASSOC); ?>
+            <?php if (empty($inv_rows)): ?>
+              <tr><td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-state-icon">📦</div>
+                  <div class="empty-state-title">No inventory records</div>
+                  <div class="empty-state-text">Add food items first and their stock will appear here automatically.</div>
+                </div>
+              </td></tr>
+            <?php else: ?>
+            <?php foreach ($inv_rows as $row): ?>
               <?php
                 $sc = $row['quantity'] <= $row['low_stock_alert'] ? 'inventory-low' : 'inventory-available';
                 $sl = $row['quantity'] <= $row['low_stock_alert'] ? 'Low Stock'     : 'Available';
@@ -82,7 +91,8 @@ $result = mysqli_query($conn, $sql);
                   </button>
                 </td>
               </tr>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
+            <?php endif; ?>
           </tbody>
         </table>
       </div>
